@@ -206,22 +206,48 @@ def build_html(insights: dict, date_str: str, news_summary: str = "") -> str:
     # AI News section (only rendered if summary is non-empty)
     news_html = ""
     if news_summary:
+        import re as _re
         bullet_items = [
             line.lstrip("•").strip()
             for line in news_summary.splitlines()
             if line.strip().startswith("•")
         ]
         if not bullet_items:
-            # Fallback: treat each non-empty line as a bullet
             bullet_items = [l.strip() for l in news_summary.splitlines() if l.strip()]
-        bullets_html = "".join(
-            f'<li style="margin-bottom:10px;font-size:13px;color:#333;line-height:1.6">{item}</li>'
-            for item in bullet_items
-        )
+
+        def render_news_card(text: str, index: int) -> str:
+            # Bold the headline (text between ** **) and render rest as body
+            headline_match = _re.match(r"\*\*(.+?)\*\*\s*[-—]?\s*(.*)", text, _re.DOTALL)
+            if headline_match:
+                headline = headline_match.group(1).strip()
+                body = headline_match.group(2).strip()
+            else:
+                # No bold headline — treat first sentence as headline
+                parts = _re.split(r"(?<=\.)\s+", text, maxsplit=1)
+                headline = parts[0]
+                body = parts[1] if len(parts) > 1 else ""
+
+            accent_colors = ["#4f8ef7", "#2ecc71", "#e67e22", "#9b59b6", "#e74c3c", "#1abc9c", "#f39c12"]
+            color = accent_colors[index % len(accent_colors)]
+
+            body_html = f'<div style="margin-top:6px;font-size:12px;color:#555;line-height:1.6">{body}</div>' if body else ""
+            return f"""
+            <tr><td style="padding:0 0 10px 0">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-left:3px solid {color};background:#f9fafb;border-radius:0 8px 8px 0">
+                <tr>
+                  <td style="padding:12px 16px">
+                    <div style="font-size:13px;font-weight:700;color:#1a1a2e;line-height:1.4">{headline}</div>
+                    {body_html}
+                  </td>
+                </tr>
+              </table>
+            </td></tr>"""
+
+        news_cards = "".join(render_news_card(item, i) for i, item in enumerate(bullet_items))
         news_html = f"""
-    {section_header("🗞️ Top AI News from This Week's Videos", "#e74c3c")}
+    {section_header("🗞️ Top AI News from This Week's Videos", "#4f8ef7")}
     <tr><td style="padding:16px 32px 20px">
-      <ul style="margin:0;padding-left:18px">{bullets_html}</ul>
+      <table width="100%" cellpadding="0" cellspacing="0">{news_cards}</table>
     </td></tr>"""
 
     return f"""<!DOCTYPE html>
