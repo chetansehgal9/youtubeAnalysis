@@ -176,8 +176,9 @@ def build_email(deck_path: str, insights: dict) -> MIMEMultipart:
     body = "\n".join(lines)
 
     msg = MIMEMultipart()
+    recipients = [r.strip() for r in RECIPIENT_EMAIL.split(",")]
     msg["From"] = GMAIL_ADDRESS
-    msg["To"] = RECIPIENT_EMAIL
+    msg["To"] = ", ".join(recipients)
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
 
@@ -201,8 +202,9 @@ def send(msg: MIMEMultipart):
         server.ehlo()
         print(f"Logging in as {GMAIL_ADDRESS}...")
         server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-        print(f"Sending to {RECIPIENT_EMAIL}...")
-        server.sendmail(GMAIL_ADDRESS, RECIPIENT_EMAIL, msg.as_string())
+        recipients = [r.strip() for r in RECIPIENT_EMAIL.split(",")]
+        print(f"Sending to {', '.join(recipients)}...")
+        server.sendmail(GMAIL_ADDRESS, recipients, msg.as_string())
     print("Email sent successfully.")
 
 
