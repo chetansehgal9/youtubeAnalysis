@@ -58,61 +58,122 @@ def find_latest_deck() -> str:
     return files[0]
 
 
-def load_insights_summary() -> str:
-    """Load key stats from insights.json for the email body."""
+def fmt(n) -> str:
+    n = int(n)
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.0f}K"
+    return str(n)
+
+
+def load_insights() -> dict:
     import json
-    insights_path = ".tmp/insights.json"
-    if not os.path.exists(insights_path):
-        return ""
-    with open(insights_path, encoding="utf-8") as f:
-        data = json.load(f)
-    stats = data.get("summary_stats", {})
-    top_videos = data.get("top_videos_by_views", [])
-    top_channels = data.get("channel_leaderboard", [])
-
-    def fmt(n):
-        n = int(n)
-        return f"{n / 1_000_000:.1f}M" if n >= 1_000_000 else f"{n / 1_000:.0f}K" if n >= 1_000 else str(n)
-
-    lines = [
-        f"• Videos analyzed: {data.get('total_videos', 'N/A'):,}",
-        f"• Unique channels: {stats.get('total_unique_channels', 'N/A'):,}",
-        f"• Average views: {fmt(stats.get('avg_views', 0))}",
-        f"• Average engagement rate: {stats.get('avg_engagement_rate', 'N/A')}%",
-    ]
-    if top_videos:
-        tv = top_videos[0]
-        lines.append(f"• Most viewed: \"{tv['title'][:70]}\" — {fmt(tv['view_count'])} views")
-    if top_channels:
-        tc = top_channels[0]
-        lines.append(f"• Top channel: {tc['channel_title']} ({fmt(tc['total_views'])} total views)")
-
-    return "\n".join(lines)
+    path = ".tmp/insights.json"
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
-def build_email(deck_path: str, summary: str) -> MIMEMultipart:
+def build_email(deck_path: str, insights: dict) -> MIMEMultipart:
     date_str = datetime.now().strftime("%B %d, %Y")
-    subject = f"AI YouTube Trend Report — {date_str}"
+    subject = f"🤖 AI YouTube Briefing — {date_str}"
 
-    body = f"""Hi,
+    stats = insights.get("summary_stats", {})
+    top_views = insights.get("top_videos_by_views", [])
+    top_eng = insights.get("top_videos_by_engagement", [])
+    keywords = insights.get("trending_keywords", [])
+    channels = insights.get("channel_leaderboard", [])
+    recs = insights.get("content_recommendations", [])
+    total = insights.get("total_videos", 0)
 
-Your AI YouTube Trend Report for {date_str} is attached.
+    # ── Section: header ──────────────────────────────────────────────────────
+    lines = [
+        f"AI YOUTUBE BRIEFING — {date_str.upper()}",
+        "=" * 56,
+        f"Analyzed {total:,} videos across {stats.get('total_unique_channels', 0):,} channels "
+        f"(last 90 days) | Avg engagement: {stats.get('avg_engagement_rate', 0)}%",
+        "",
+    ]
 
-Quick summary:
-{summary}
+    # ── Section: top trending videos ─────────────────────────────────────────
+    lines += [
+        "WHAT'S TRENDING RIGHT NOW",
+        "-" * 56,
+        "Top videos by views in the AI & automation niche:",
+        "",
+    ]
+    for i, v in enumerate(top_views[:5], 1):
+        url = f"https://youtube.com/watch?v={v['video_id']}"
+        days = int(v.get("days_since_published", 0))
+        age = f"{days}d ago" if days < 30 else f"{days // 7}w ago"
+        lines += [
+            f"{i}. {v['title']}",
+            f"   {v['channel_title']} · {fmt(v['view_count'])} views · {age}",
+            f"   {url}",
+            "",
+        ]
 
-The full slide deck includes:
-  • Top 10 videos by views and engagement rate
-  • Trending keywords in AI niche titles
-  • Top channels leaderboard
-  • Upload activity over the last 90 days
-  • Data-driven content recommendations
+    # ── Section: most engaging ────────────────────────────────────────────────
+    lines += [
+        "MOST ENGAGING CONTENT (audience resonance)",
+        "-" * 56,
+        "These videos have the highest like + comment rate relative to views:",
+        "",
+    ]
+    for i, v in enumerate(top_eng[:5], 1):
+        url = f"https://youtube.com/watch?v={v['video_id']}"
+        lines += [
+            f"{i}. {v['title']}",
+            f"   {v['channel_title']} · {v['engagement_rate']}% engagement · {fmt(v['view_count'])} views",
+            f"   {url}",
+            "",
+        ]
 
-Open the attached .pptx in PowerPoint, Keynote, or Google Slides.
+    # ── Section: trending keywords ────────────────────────────────────────────
+    if keywords:
+        top_words = [k["word"] for k in keywords[:10]]
+        lines += [
+            "TRENDING KEYWORDS IN AI NICHE TITLES",
+            "-" * 56,
+            "  " + "  ·  ".join(top_words),
+            "",
+        ]
 
-—
-Sent automatically by the WAT YouTube Trend Analysis pipeline.
-"""
+    # ── Section: top channels ─────────────────────────────────────────────────
+    if channels:
+        lines += [
+            "TOP CHANNELS TO WATCH",
+            "-" * 56,
+        ]
+        for i, c in enumerate(channels[:5], 1):
+            lines.append(
+                f"{i}. {c['channel_title']} — {fmt(c['total_views'])} views "
+                f"across {c['video_count']} videos · {c['avg_engagement']:.1f}% avg engagement"
+            )
+        lines.append("")
+
+    # ── Section: recommendations ──────────────────────────────────────────────
+    if recs:
+        lines += [
+            "CONTENT RECOMMENDATIONS FOR YOU",
+            "-" * 56,
+        ]
+        for i, rec in enumerate(recs, 1):
+            lines.append(f"{i}. {rec}")
+        lines.append("")
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    lines += [
+        "=" * 56,
+        "Full slide deck with charts attached.",
+        "Open the .pptx in PowerPoint, Keynote, or Google Slides.",
+        "",
+        "Sent automatically by the WAT YouTube Trend Analysis pipeline.",
+    ]
+
+    body = "\n".join(lines)
 
     msg = MIMEMultipart()
     msg["From"] = GMAIL_ADDRESS
@@ -149,8 +210,8 @@ def main():
     validate_env()
     deck_path = find_latest_deck()
     print(f"Report to send: {deck_path}")
-    summary = load_insights_summary()
-    msg = build_email(deck_path, summary)
+    insights = load_insights()
+    msg = build_email(deck_path, insights)
     send(msg)
 
 
