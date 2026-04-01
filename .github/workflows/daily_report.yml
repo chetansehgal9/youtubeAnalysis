@@ -20,7 +20,7 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
-        run: pip install google-api-python-client python-dotenv pandas matplotlib seaborn python-pptx certifi
+        run: pip install google-api-python-client python-dotenv pandas matplotlib seaborn python-pptx certifi anthropic
 
       - name: Write .env from GitHub Secrets
         run: |
@@ -29,6 +29,7 @@ jobs:
           GMAIL_ADDRESS=${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAIL=${{ secrets.RECIPIENT_EMAIL }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           EOF
 
       - name: Fetch YouTube trends
@@ -36,6 +37,9 @@ jobs:
 
       - name: Analyze trends
         run: python tools/analyze_trends.py
+
+      - name: Generate AI news summary
+        run: python tools/generate_news_summary.py
 
       - name: Generate charts
         run: python tools/generate_charts.py

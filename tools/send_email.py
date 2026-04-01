@@ -87,6 +87,14 @@ def load_insights() -> dict:
         return json.load(f)
 
 
+def load_news_summary() -> str:
+    path = ".tmp/news_summary.txt"
+    if not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8") as f:
+        return f.read().strip()
+
+
 def age_label(days: float) -> str:
     d = int(days)
     if d < 1:
@@ -98,7 +106,7 @@ def age_label(days: float) -> str:
     return f"{d // 7}w ago"
 
 
-def build_html(insights: dict, date_str: str) -> str:
+def build_html(insights: dict, date_str: str, news_summary: str = "") -> str:
     stats = insights.get("summary_stats", {})
     top_views = insights.get("top_videos_by_views", [])
     top_eng = insights.get("top_videos_by_engagement", [])
@@ -195,6 +203,27 @@ def build_html(insights: dict, date_str: str) -> str:
     trending_cards = "".join(video_card(v) for v in top_views[:5])
     engaging_cards = "".join(video_card(v, show_engagement=True) for v in top_eng[:5])
 
+    # AI News section (only rendered if summary is non-empty)
+    news_html = ""
+    if news_summary:
+        bullet_items = [
+            line.lstrip("•").strip()
+            for line in news_summary.splitlines()
+            if line.strip().startswith("•")
+        ]
+        if not bullet_items:
+            # Fallback: treat each non-empty line as a bullet
+            bullet_items = [l.strip() for l in news_summary.splitlines() if l.strip()]
+        bullets_html = "".join(
+            f'<li style="margin-bottom:10px;font-size:13px;color:#333;line-height:1.6">{item}</li>'
+            for item in bullet_items
+        )
+        news_html = f"""
+    {section_header("🗞️ Top AI News from This Week's Videos", "#e74c3c")}
+    <tr><td style="padding:16px 32px 20px">
+      <ul style="margin:0;padding-left:18px">{bullets_html}</ul>
+    </td></tr>"""
+
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f0f2f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
@@ -216,6 +245,8 @@ def build_html(insights: dict, date_str: str) -> str:
     <tr><td style="padding:24px 26px 20px">
       <table width="100%" cellpadding="0" cellspacing="0"><tr>{stat_cards_html}</tr></table>
     </td></tr>
+
+    {news_html}
 
     <!-- Trending videos -->
     {section_header("🔥 What's Trending Right Now", "#e74c3c")}
@@ -272,7 +303,7 @@ def build_html(insights: dict, date_str: str) -> str:
 </body></html>"""
 
 
-def build_plain(insights: dict, date_str: str) -> str:
+def build_plain(insights: dict, date_str: str, news_summary: str = "") -> str:
     stats = insights.get("summary_stats", {})
     top_views = insights.get("top_videos_by_views", [])
     top_eng = insights.get("top_videos_by_engagement", [])
@@ -286,8 +317,12 @@ def build_plain(insights: dict, date_str: str) -> str:
         "=" * 56,
         f"{total:,} videos · {stats.get('total_unique_channels', 0):,} channels · {stats.get('avg_engagement_rate', 0)}% avg engagement",
         "",
-        "TRENDING VIDEOS", "-" * 40,
     ]
+
+    if news_summary:
+        lines += ["TOP AI NEWS THIS WEEK", "-" * 40, news_summary, ""]
+
+    lines += ["TRENDING VIDEOS", "-" * 40]
     for i, v in enumerate(top_views[:5], 1):
         days = int(v.get("days_since_published", 0))
         lines += [f"{i}. {v['title']}", f"   {v['channel_title']} · {fmt(v['view_count'])} views · {days}d ago",
@@ -318,7 +353,7 @@ def build_plain(insights: dict, date_str: str) -> str:
     return "\n".join(lines)
 
 
-def build_email(deck_path: str, insights: dict) -> MIMEMultipart:
+def build_email(deck_path: str, insights: dict, news_summary: str = "") -> MIMEMultipart:
     date_str = datetime.now().strftime("%B %d, %Y")
     subject = f"🤖 AI YouTube Briefing — {date_str}"
 
@@ -332,8 +367,8 @@ def build_email(deck_path: str, insights: dict) -> MIMEMultipart:
 
     # Inner alternative: plain + html
     alt = MIMEMultipart("alternative")
-    alt.attach(MIMEText(build_plain(insights, date_str), "plain", "utf-8"))
-    alt.attach(MIMEText(build_html(insights, date_str), "html", "utf-8"))
+    alt.attach(MIMEText(build_plain(insights, date_str, news_summary), "plain", "utf-8"))
+    alt.attach(MIMEText(build_html(insights, date_str, news_summary), "html", "utf-8"))
     msg.attach(alt)
 
     # Attach deck
@@ -366,7 +401,10 @@ def main():
     deck_path = find_latest_deck()
     print(f"Report to send: {deck_path}")
     insights = load_insights()
-    msg = build_email(deck_path, insights)
+    news_summary = load_news_summary()
+    if news_summary:
+        print("AI news summary loaded.")
+    msg = build_email(deck_path, insights, news_summary)
     send(msg)
 
 
