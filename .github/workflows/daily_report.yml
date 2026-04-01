@@ -1,0 +1,47 @@
+name: Daily AI YouTube Trend Report
+
+on:
+  schedule:
+    - cron: "0 13 * * *"   # 6am PT (UTC-7 PDT) every day
+  workflow_dispatch:         # allow manual trigger from GitHub UI
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install google-api-python-client python-dotenv pandas matplotlib seaborn python-pptx certifi
+
+      - name: Write .env from GitHub Secrets
+        run: |
+          cat > .env <<EOF
+          YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}
+          GMAIL_ADDRESS=${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT_EMAIL=${{ secrets.RECIPIENT_EMAIL }}
+          EOF
+
+      - name: Fetch YouTube trends
+        run: python tools/fetch_youtube_trends.py
+
+      - name: Analyze trends
+        run: python tools/analyze_trends.py
+
+      - name: Generate charts
+        run: python tools/generate_charts.py
+
+      - name: Create slide deck
+        run: python tools/create_deck.py
+
+      - name: Send email report
+        run: python tools/send_email.py
