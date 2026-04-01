@@ -15,7 +15,9 @@ Input:  .tmp/ai_trend_report_YYYYMMDD.pptx  (most recent, from create_deck.py)
 
 import glob
 import os
+import re
 import smtplib
+import ssl
 import sys
 from datetime import datetime
 from email import encoders
@@ -31,7 +33,11 @@ GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
 SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587  # TLS
+SMTP_PORT = 465  # SSL
+
+
+def _valid_email(addr: str) -> bool:
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", addr))
 
 
 def validate_env():
@@ -45,6 +51,11 @@ def validate_env():
     if missing:
         print(f"ERROR: Missing environment variables: {', '.join(missing)}")
         print("Add these to your .env file and try again.")
+        sys.exit(1)
+
+    invalid = [r.strip() for r in RECIPIENT_EMAIL.split(",") if not _valid_email(r.strip())]
+    if invalid:
+        print(f"ERROR: Invalid recipient email(s): {', '.join(invalid)}")
         sys.exit(1)
 
 
@@ -338,15 +349,14 @@ def build_email(deck_path: str, insights: dict) -> MIMEMultipart:
 
 
 def send(msg: MIMEMultipart):
-    print(f"Connecting to {SMTP_SERVER}:{SMTP_PORT}...")
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        print(f"Logging in as {GMAIL_ADDRESS}...")
+    recipients = [r.strip() for r in RECIPIENT_EMAIL.split(",")]
+    print(f"Connecting to {SMTP_SERVER}:{SMTP_PORT} (SSL)...")
+    import certifi
+    context = ssl.create_default_context(cafile=certifi.where())
+    with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+        print("Logging in...")
         server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-        recipients = [r.strip() for r in RECIPIENT_EMAIL.split(",")]
-        print(f"Sending to {', '.join(recipients)}...")
+        print(f"Sending to {len(recipients)} recipient(s)...")
         server.sendmail(GMAIL_ADDRESS, recipients, msg.as_string())
     print("Email sent successfully.")
 
