@@ -20,7 +20,7 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
-        run: pip install google-api-python-client python-dotenv pandas matplotlib seaborn python-pptx certifi anthropic
+        run: pip install -r requirements.txt
 
       - name: Write .env from GitHub Secrets
         run: |
