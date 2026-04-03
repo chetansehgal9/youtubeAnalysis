@@ -23,13 +23,11 @@ jobs:
 
       - name: Write .env from GitHub Secrets
         run: |
-          cat > .env <<EOF
-          YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}
-          GMAIL_ADDRESS=${{ secrets.GMAIL_ADDRESS }}
-          GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
-          RECIPIENT_EMAIL=${{ secrets.RECIPIENT_EMAIL }}
-          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
-          EOF
+          echo "YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}" >> .env
+          echo "GMAIL_ADDRESS=${{ secrets.GMAIL_ADDRESS }}" >> .env
+          echo "GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}" >> .env
+          echo "RECIPIENT_EMAIL=${{ secrets.RECIPIENT_EMAIL }}" >> .env
+          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env
 
       - name: Fetch YouTube trends
         run: python tools/fetch_youtube_trends.py
