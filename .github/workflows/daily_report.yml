@@ -1,8 +1,8 @@
-name: Daily AI YouTube Trend Report
+name: AI YouTube Trend Report
 
 on:
   schedule:
-    - cron: "0 13 * * *"   # 6am PT (UTC-7 PDT) every day
+    - cron: "0 13 1,15 * *"   # 6am PT (UTC-7 PDT) on the 1st and 15th of each month
   workflow_dispatch:         # allow manual trigger from GitHub UI
 
 jobs:
